@@ -18,17 +18,39 @@ const keys = {};
 
 const characterScale = 0.07;
 
+class Bullet {
+    constructor(x, y, angle) {
+        this.x = x;
+        this.y = y;
+        this.angle = angle;
+        this.speed = 5;
+    }
+
+    update() {
+        this.x += Math.sin(this.angle) * this.speed;
+        this.y -= Math.cos(this.angle) * this.speed;
+    }
+
+    draw() {
+        ctx.fillStyle = 'red';
+        ctx.beginPath();
+        ctx.arc(this.x, this.y, 5, 0, Math.PI * 2);
+        ctx.fill();
+    }
+}
+
+let bullets = [];
+
 function draw() {
     ctx.clearRect(0, 0, canvas.width, canvas.height);
     
     ctx.save();
     ctx.scale(zoomLevel, zoomLevel);
-
+    
     const mapX = Math.max(Math.min(-position.x + canvasWidth / (2 * zoomLevel), 0), -(mapImage.width - canvasWidth / zoomLevel));
     const mapY = Math.max(Math.min(-position.y + canvasHeight / (2 * zoomLevel), 0), -(mapImage.height - canvasHeight / zoomLevel));
     
     ctx.drawImage(mapImage, mapX, mapY);
-
     ctx.restore();
 
     ctx.save();
@@ -39,6 +61,10 @@ function draw() {
     const characterHeight = characterImage.height * characterScale * zoomLevel;
     ctx.drawImage(characterImage, -characterWidth / 2, -characterHeight / 2, characterWidth, characterHeight);
     ctx.restore();
+
+    bullets.forEach(bullet => {
+        bullet.draw();
+    });
 }
 
 function update() {
@@ -68,6 +94,13 @@ function update() {
 
     position.x = newX;
     position.y = newY;
+
+    bullets.forEach((bullet, index) => {
+        bullet.update();
+        if (bullet.x < 0 || bullet.x > canvasWidth || bullet.y < 0 || bullet.y > canvasHeight) {
+            bullets.splice(index, 1);
+        }
+    });
 }
 
 document.addEventListener('keydown', (event) => {
@@ -77,6 +110,15 @@ document.addEventListener('keydown', (event) => {
         zoomLevel = Math.min(zoomLevel + 0.1, 3);
     } else if (event.key === '-') {
         zoomLevel = Math.max(zoomLevel - 0.1, 0.5);
+    }
+
+    if (event.key === ' ') {
+        const bullet = new Bullet(
+            canvasWidth / 2 + Math.sin(angle) * characterScale * characterImage.width * zoomLevel,
+            canvasHeight / 2 - Math.cos(angle) * characterScale * characterImage.height * zoomLevel,
+            angle
+        );
+        bullets.push(bullet);
     }
 });
 

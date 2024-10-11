@@ -152,7 +152,8 @@ window.onload = function () {
     function handleButtonAction(index) {
         switch (index) {
             case 0:
-                break;
+            window.location.href = "game/game.html";    
+            break;
             case 1:
                 alert("Options clicked!");
                 break;
