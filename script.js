@@ -1,138 +1,113 @@
 const canvas = document.getElementById('gameCanvas');
 const ctx = canvas.getContext('2d');
 const mapImage = new Image();
-mapImage.src = 'map.jpg'; // Path to the uploaded map image
+mapImage.src = 'map.jpg';
 const characterImage = new Image();
-characterImage.src = 'character.png'; // Path to your character image
+characterImage.src = 'character.png';
 
 const canvasWidth = 800;
 const canvasHeight = 600;
 canvas.width = canvasWidth;
 canvas.height = canvasHeight;
 
-let angle = 0; // Angle for rotation
-let position = { x: canvas.width/2, y: canvas.height/2}; // Character's position relative to the map
-const step = 5; // Movement speed
-const keys = {}; // Track key states
+let angle = 0;
+let position = { x: 0, y: 0 };
+let zoomLevel = 1; // Add zoom level, starting at 1 (no zoom)
+const step = 2;
+const keys = {};
 
-// Set character scale
-const characterScale = 0.1; // Scale down to 50% of original size
+const characterScale = 0.07;
 
-// Create an offscreen canvas for pixel collision detection
-const offscreenCanvas = document.createElement('canvas');
-const offscreenCtx = offscreenCanvas.getContext('2d');
-
-// Function to check if a pixel is walkable
-function isWalkablePixel(x, y) {
-    // Get pixel data from the offscreen canvas
-    const pixelData = offscreenCtx.getImageData(x, y, 1, 1).data;
-
-    // Assuming walkable areas are light (not walls), and walls are dark (e.g., grayscale)
-    // Example: If the pixel color is close to black (a wall), return false
-    const [r, g, b] = pixelData;
-    
-    // Simple rule: if the pixel is dark (close to black), it is a wall (non-walkable)
-    return !(r < 50 && g < 50 && b < 50); // True if not a wall
-}
-
-// Function to draw the map and the character
 function draw() {
     ctx.clearRect(0, 0, canvas.width, canvas.height);
-
-    // Draw the map image with offsets to simulate panning
-    ctx.drawImage(mapImage, -position.x + canvasWidth / 2, -position.y + canvasHeight / 2);
-
-    // Save the current context state
+    
     ctx.save();
+    ctx.scale(zoomLevel, zoomLevel); // Apply zoom scaling
 
-    // Move to the center of the canvas for the character
+    // Calculate the boundaries to prevent the map from showing areas outside its dimensions
+    const mapX = Math.max(Math.min(-position.x + canvasWidth / (2 * zoomLevel), 0), -(mapImage.width - canvasWidth / zoomLevel));
+    const mapY = Math.max(Math.min(-position.y + canvasHeight / (2 * zoomLevel), 0), -(mapImage.height - canvasHeight / zoomLevel));
+    
+    // Draw the clipped map image
+    ctx.drawImage(mapImage, mapX, mapY);
+
+    ctx.restore();
+
+    ctx.save();
     ctx.translate(canvasWidth / 2, canvasHeight / 2);
-    ctx.rotate(angle); // Rotate by the current angle
+    ctx.rotate(angle);
 
-    // Draw character at the center with scaling
-    const characterWidth = characterImage.width * characterScale;
-    const characterHeight = characterImage.height * characterScale;
+    const characterWidth = characterImage.width * characterScale * zoomLevel;
+    const characterHeight = characterImage.height * characterScale * zoomLevel;
     ctx.drawImage(characterImage, -characterWidth / 2, -characterHeight / 2, characterWidth, characterHeight);
-
-    // Restore the context to its original state
     ctx.restore();
 }
 
-// Function to update position and angle based on key states
 function update() {
     let newX = position.x;
     let newY = position.y;
 
     if (keys['a']) {
-        angle -= 0.05; // Rotate left
+        angle -= 0.05;
     }
     if (keys['d']) {
-        angle += 0.05; // Rotate right
+        angle += 0.05;
     }
     if (keys['w']) {
-        // Move forward
         newX += Math.sin(angle) * step;
         newY -= Math.cos(angle) * step;
     }
     if (keys['s']) {
-        // Move backward
         newX -= Math.sin(angle) * step;
         newY += Math.cos(angle) * step;
     }
 
-    // Get the projected future position on the map
-    const mapX = Math.floor(newX + canvasWidth / 2);
-    const mapY = Math.floor(newY + canvasHeight / 2);
+    // Ensure the character doesn't move out of the map bounds
+    const halfCanvasWidth = (canvasWidth / 2) / zoomLevel;
+    const halfCanvasHeight = (canvasHeight / 2) / zoomLevel;
 
-    // Check if the new position is walkable based on pixel color
-    if (isWithinMap(newX, newY) && isWalkablePixel(mapX, mapY)) {
-        position.x = newX;
-        position.y = newY;
-    }
+    newX = Math.max(halfCanvasWidth, Math.min(newX, mapImage.width - halfCanvasWidth));
+    newY = Math.max(halfCanvasHeight, Math.min(newY, mapImage.height - halfCanvasHeight));
+
+    position.x = newX;
+    position.y = newY;
 }
 
-// Check if the character is within the map boundaries
-function isWithinMap(x, y) {
-    const mapWidth = mapImage.width; // Get map width
-    const mapHeight = mapImage.height; // Get map height
-
-    // Check if the position is within the bounds of the map
-    return x >= 0 && x <= mapWidth && y >= 0 && y <= mapHeight;
-}
-
-// Event listeners for key down and up
+// Listen for zoom key presses (e.g., + to zoom in, - to zoom out)
 document.addEventListener('keydown', (event) => {
-    keys[event.key] = true; // Mark the key as pressed
-});
-document.addEventListener('keyup', (event) => {
-    keys[event.key] = false; // Mark the key as released
+    keys[event.key] = true;
+
+    // Zoom in with '+' key and zoom out with '-' key
+    if (event.key === '+') {
+        zoomLevel = Math.min(zoomLevel + 0.1, 3); // Cap the max zoom
+    } else if (event.key === '-') {
+        zoomLevel = Math.max(zoomLevel - 0.1, 0.5); // Cap the minimum zoom
+    }
 });
 
-// Main loop to update position and redraw
+document.addEventListener('keyup', (event) => {
+    keys[event.key] = false;
+});
+
 function gameLoop() {
     update();
     draw();
-    requestAnimationFrame(gameLoop); // Repeat the loop
+    requestAnimationFrame(gameLoop);
 }
 
-// Load images and start the game loop
 let imagesLoaded = 0;
 const totalImages = 2;
 
 mapImage.onload = () => {
     imagesLoaded++;
-    offscreenCanvas.width = mapImage.width;
-    offscreenCanvas.height = mapImage.height;
-    offscreenCtx.drawImage(mapImage, 0, 0); // Draw map to offscreen canvas for pixel data
-
     if (imagesLoaded === totalImages) {
-        gameLoop(); // Start the main loop after both images load
+        gameLoop();
     }
 };
 
 characterImage.onload = () => {
     imagesLoaded++;
     if (imagesLoaded === totalImages) {
-        gameLoop(); // Start the main loop after both images load
+        gameLoop();
     }
 };
